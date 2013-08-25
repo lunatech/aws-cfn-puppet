@@ -1,0 +1,615 @@
+{
+    "AWSTemplateFormatVersion" : "2010-09-09",
+
+    "Description": "aws-cfn-puppet", 
+
+    "Parameters" : {
+
+	"CCInstanceType" : {
+	    "Description" : "EC2 instance type for CC nodes",
+	    "Type" : "String",
+	    "Default" : "t1.micro",
+	    "AllowedValues" : [ "t1.micro", "m1.small", "m1.large", "m1.xlarge", "m2.xlarge", "m2.2xlarge", "m2.4xlarge", "c1.medium", "c1.xlarge", "cc1.4xlarge" ],
+	    "ConstraintDescription" : "Must be a valid instance type"
+	},
+
+	"FEInstanceType" : {
+	    "Description" : "EC2 instance type for FE nodes",
+	    "Type" : "String",
+	    "Default" : "t1.micro",
+	    "AllowedValues" : [ "t1.micro", "m1.small", "m1.large", "m1.xlarge", "m2.xlarge", "m2.2xlarge", "m2.4xlarge", "c1.medium", "c1.xlarge", "cc1.4xlarge" ],
+	    "ConstraintDescription" : "Must be a valid instance type"
+	},
+
+	"MinFEInstances" : {
+	    "Description" : "Minimum number of instances in FEAutoScalingGroup",
+	    "Type" : "Number",
+	    "Default" : "1",
+	    "MinValue" : "1",
+	    "ConstraintDescription": "Must be a whole number >= 1"
+	},
+
+	"MaxFEInstances" : {
+	    "Description" : "Maximum number of instances in FEAutoScalingGroup",
+	    "Type" : "Number",
+	    "Default" : "2",
+	    "ConstraintDescription": "Must be a whole number >= MinFEInstances"
+	},
+
+	"BEInstanceType" : {
+	    "Description" : "EC2 instance type for BE nodes",
+	    "Type" : "String",
+	    "Default" : "t1.micro",
+	    "AllowedValues" : [ "t1.micro", "m1.small", "m1.large", "m1.xlarge", "m2.xlarge", "m2.2xlarge", "m2.4xlarge", "c1.medium", "c1.xlarge", "cc1.4xlarge" ],
+	    "ConstraintDescription" : "Must be a valid instance type"
+	},
+
+	"MinBEInstances" : {
+	    "Description" : "Minimum number of instances in BEAutoScalingGroup",
+	    "Type" : "Number",
+	    "Default" : "1",
+	    "MinValue" : "1",
+	    "ConstraintDescription": "Must be a whole number >= 1"
+	},
+
+	"MaxBEInstances" : {
+	    "Description" : "Maximum number of instances in BEAutoScalingGroup",
+	    "Type" : "Number",
+	    "Default" : "2",
+	    "ConstraintDescription": "Must be a whole number >= MinBEInstances"
+	},
+
+	"AppQueueVisibilityTimeout" : {
+	    "Description" : "Visibility timeout (in seconds) for the application queue",
+	    "Type" : "Number",
+	    "Default" : "300",
+	    "MinValue" : "30",
+	    "ConstraintDescription" : "Must be a whole number >= 30"
+	},
+
+	"PuppetSourcesBucket" : {
+	    "Description" : "Name of S3 bucket containing Puppet source to deploy to puppet master",
+	    "Type" : "String",
+	    "Default" : "d5edb76b-de62-4972-b017-6f147d893007"
+	},
+
+	"PuppetSourcesFile" : {
+	    "Description" : "Name of file in PuppetSourcesBucket containing Puppet source to deploy to puppet master",
+	    "Type" : "String",
+	    "Default" : "puppet.tar.gz"
+	},
+
+	"KeyName" : {
+	    "Description" : "Name of EC2 key pair for SSH access to EC2 instances",
+	    "Type" : "String"
+	} 
+
+    },
+
+    "Mappings" : {
+	"AWSInstanceType2Arch" : {
+	    "t1.micro" : { "Arch" : "32" },
+	    "m1.small" : { "Arch" : "32" },
+	    "m1.large" : { "Arch" : "64" },
+	    "m1.xlarge" : { "Arch" : "64" },
+	    "m2.xlarge" : { "Arch" : "64" },
+	    "m2.2xlarge" : { "Arch" : "64" },
+	    "m2.4xlarge" : { "Arch" : "64" },
+	    "c1.medium" : { "Arch" : "32" },
+	    "c1.xlarge" : { "Arch" : "64" },
+	    "cc1.4xlarge" : { "Arch" : "64" }
+	},
+
+	"AWSRegionArch2AMI" : {
+	    "us-east-1": {"32": "ami-21d9a948", "64": "ami-23d9a94a"}, "ap-northeast-1": {"32": "ami-4b12984a", "64": "ami-51129850"}, "ap-southeast-1": {"32": "ami-a22f66f0", "64": "ami-a02f66f2"}, "sa-east-1": {"32": "ami-227edb3f", "64": "ami-5c7edb41"}, "ap-southeast-2": {"32": "ami-914ddeab", "64": "ami-974ddead"}, "us-west-1": {"32": "ami-3a072e7f", "64": "ami-c4072e81"}, "eu-west-1": {"32": "ami-8fb1a3fb", "64": "ami-89b1a3fd"}
+	}
+    },
+
+    "Resources" : { 
+
+	"CFNInitUser" : {
+	    "Type" : "AWS::IAM::User",
+	    "Properties" : {
+		"Policies": [{
+		    "PolicyName": "AccessForCFNInit",
+		    "PolicyDocument" : {
+			"Statement": [
+			    { "Effect" : "Allow",
+			      "Action" : "cloudformation:DescribeStackResource",
+			      "Resource" : "*"
+			    }
+			]
+		    }
+		}]
+	    }
+	},
+
+	"CFNInitUserKeys" : {
+	    "Type" : "AWS::IAM::AccessKey",
+	    "Properties" : {
+		"UserName" : { "Ref": "CFNInitUser" }
+	    }
+	},
+
+	"AppUser" : {
+	    "Type" : "AWS::IAM::User",
+	    "Properties" : {
+		"Policies": [{
+		    "PolicyName": "AccessForAppUser",
+		    "PolicyDocument" : {
+			"Statement": [
+			    { "Effect" : "Allow",
+			      "Action" : [ "s3:Get*", "s3:List*", "s3:Put*", "s3:Delete*" ],
+			      "Resource" : [ { "Fn::Join" : [ "", [ "arn:aws:s3:::", { "Ref" : "AppBucket" } , "/*" ] ] } ]
+			    },
+			    { "Effect" : "Allow",
+			      "Action" : [ "sqs:*" ],
+			      "Resource" : [ { "Fn::GetAtt" : [ "AppQueue", "Arn" ] } ]
+			    }
+			]
+		    }
+		}]
+	    }
+	},
+
+	"AppUserKeys" : {
+	    "Type" : "AWS::IAM::AccessKey",
+	    "Properties" : {
+		"UserName" : { "Ref": "AppUser" }
+	    }
+	},
+
+	"AppBucket" : {
+	    "Type" : "AWS::S3::Bucket"
+	},
+
+	"AppQueue" : {
+	    "Type" : "AWS::SQS::Queue",
+	    "Properties" : {
+		"VisibilityTimeout" : { "Ref" : "AppQueueVisibilityTimeout" }
+	    }
+	},
+
+	"cc1" : {
+	    "Type" : "AWS::EC2::Instance",
+	    "Metadata" : {
+		"AWS::CloudFormation::Init" : {
+		    "config" : {
+			"packages" : {
+			    "apt" : {
+				"puppet" : [],
+				"puppetmaster" : [],
+ 				"ruby-dev" : [],
+				"gcc" : [],
+				"make" : [],
+				"rubygems" : []
+			    },
+			    "rubygems" : {
+				"json" : []
+			    }
+			},
+			"sources" : {
+			    "/etc/puppet" : { "Fn::Join" : [ "", [ "https://s3.amazonaws.com/", { "Ref" : "PuppetSourcesBucket" } , "/", { "Ref" : "PuppetSourcesFile" } ] ] }
+			},
+			"files" : {
+			    "/var/dist/.placeholder" : {
+				"mode" : "100644",
+				"owner" : "root",
+				"group" : "root",
+				"content" : "# Placeholder for creating /var/dist\n"
+			    },
+			    "/etc/puppet/autosign.conf" : {
+				"content" : "*.internal\n",
+				"mode" : "100644",
+				"owner" : "root",
+				"group" : "root"
+			    },
+			    "/etc/puppet/fileserver.conf" : {
+				"content" : "[modules]\n allow *.internal\n\n[dist]\n path /var/dist\n allow *.internal\n\n",
+				"mode" : "100644",
+				"owner" : "root",
+				"group" : "root"
+			    }, 
+			    "/etc/puppet/puppet.conf" : {
+				"content" : { "Fn::Join" : ["", [
+				    "[main]\n",
+				    " logdir=/var/log/puppet\n",
+				    " rundir=/var/run/puppet\n",
+				    " ssldir=$vardir/ssl\n",
+				    " pluginsync=true\n",
+				    "[agent]\n",
+				    " classfile=$vardir/classes.txt\n",
+				    " localconfig=$vardir/localconfig\n"]] },
+				"mode" : "000644",
+				"owner" : "root",
+				"group" : "root"
+			    },
+			    "/etc/puppet/modules/cfn/manifests/init.pp" : {
+				"content" : "class cfn {}",
+				"mode" : "100644",
+				"owner" : "root",
+				"group" : "root"
+			    },
+			    "/etc/puppet/modules/cfn/lib/facter/cfn.rb" : {
+				"source" : "https://s3.amazonaws.com/cloudformation-examples/cfn-facter-plugin.rb",
+				"mode" : "100644",
+				"owner" : "root",
+				"group" : "root"
+			    },
+			    "/etc/default/puppet" : {
+				"content" : { "Fn::Join" : [ "", [
+				    "START=yes\n",
+				    "SERVER=`curl http://169.254.169.254/latest/meta-data/hostname`\n",
+				    "CERTNAME=cc-`echo $SERVER | tr '[:upper:]' '[:lower:]'`\n",
+				    "DAEMON_OPTS=\"--certname $CERTNAME --server $SERVER\"\n"
+				] ] },
+				"mode" : "000644",
+				"owner" : "root",
+				"group" : "root"
+			    }
+			},
+			"services" : {
+			    "sysvinit" : { 
+				"puppetmaster" : {
+				    "enabled" : "true",
+				    "ensureRunning" : "true" 
+				},
+				"puppet" : {
+				    "enabled" : "true",
+				    "ensureRunning" : "true" 
+				}
+			    }
+			}
+		    }
+		},
+		"Puppet" : {
+		    "app_bucket_url" : { "Fn::Join" : [ "", [ "https://", { "Fn::GetAtt" : [ "AppBucket", "DomainName" ] } ] ] },
+		    "app_queue_url" : { "Ref" : "AppQueue" },
+		    "app_user_access_key_id" : { "Ref" : "AppUserKeys" },
+		    "app_user_secret_access_key" : { "Fn::GetAtt" : [ "AppUserKeys", "SecretAccessKey" ] }
+		}
+
+	    },
+
+	    "Properties" : {
+		"InstanceType" : { "Ref" : "CCInstanceType" },
+		"SecurityGroups" : [ { "Ref" : "CCSecurityGroup" }, { "Ref" : "PuppetMasterSecurityGroup" }, { "Ref" : "SyslogSecurityGroup" } ],
+		"ImageId" : { "Fn::FindInMap" : [ "AWSRegionArch2AMI", { "Ref" : "AWS::Region" },
+						  { "Fn::FindInMap" : [ "AWSInstanceType2Arch", { "Ref" : "CCInstanceType" }, "Arch" ] } ] },
+		"KeyName" : { "Ref" : "KeyName" },
+		"UserData" : { 
+		    "Fn::Base64" : { 
+			"Fn::Join" : ["", [ "#!/bin/bash\n",
+					    "apt-get -y update\n",
+					    "apt-get -y install python-setuptools\n",
+					    "easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
+					    "/usr/local/bin/cfn-init -v --region ", { "Ref" : "AWS::Region" },
+					    " -s ", { "Ref" : "AWS::StackName" }, " -r cc1 ",
+					    " --access-key ", { "Ref" : "CFNInitUserKeys" },
+					    " --secret-key ", { "Fn::GetAtt" : ["CFNInitUserKeys", "SecretAccessKey"]}, "\n",
+					    "/usr/local/bin/cfn-signal -e $? '", { "Ref" : "PuppetMasterWaitHandle" }, "'\n" ] ]
+		    }
+		}
+	    }
+	},
+
+	"SyslogSecurityGroup" : {
+	    "Type" : "AWS::EC2::SecurityGroup",
+	    "Properties" : {
+		"GroupDescription" : "Allows client access to syslog on cc1",
+		"SecurityGroupIngress" : [
+		    { "IpProtocol" : "tcp", "FromPort" : "10514", "ToPort" : "10514", "SourceSecurityGroupName" : { "Ref" : "FESecurityGroup" } },
+		    { "IpProtocol" : "tcp", "FromPort" : "10514", "ToPort" : "10514", "SourceSecurityGroupName" : { "Ref" : "BESecurityGroup" } }
+		]
+	    }
+	},
+
+	"PuppetMasterSecurityGroup" : {
+	    "Type" : "AWS::EC2::SecurityGroup",
+	    "Properties" : {
+		"GroupDescription" : "Allows Puppet clients to access puppetmaster on cc1",
+		"SecurityGroupIngress" : [
+		    { "IpProtocol" : "tcp", "FromPort" : "8140", "ToPort" : "8140", "SourceSecurityGroupName" : { "Ref" : "FESecurityGroup" } },
+		    { "IpProtocol" : "tcp", "FromPort" : "8140", "ToPort" : "8140", "SourceSecurityGroupName" : { "Ref" : "BESecurityGroup" } }
+		]
+	    }
+	},
+
+	"CCSecurityGroup" : {
+	    "Type" : "AWS::EC2::SecurityGroup",
+	    "Properties" : {
+		"GroupDescription" : "Allows SSH access to cc1 from the world",
+		"SecurityGroupIngress" : [
+		    { "IpProtocol" : "tcp", "FromPort": "22", "ToPort": "22", "CidrIp": "0.0.0.0/0" }
+		] 
+
+	    }
+	},
+
+	"PuppetMasterWaitHandle" : {
+	    "Type" : "AWS::CloudFormation::WaitConditionHandle"
+	},
+
+	"PuppetMasterWaitCondition" : {
+	    "Type" : "AWS::CloudFormation::WaitCondition",
+	    "DependsOn" : "cc1",
+	    "Properties" : {
+		"Handle" : { "Ref" : "PuppetMasterWaitHandle" },
+		"Timeout" : "600"
+	    }
+	},
+
+	"FESecurityGroup" : {
+	    "Type" : "AWS::EC2::SecurityGroup",
+	    "Properties" : {
+		"GroupDescription" : "Security group for FE instances",
+		"SecurityGroupIngress" : [
+		    { "IpProtocol" : "tcp", "FromPort": "22", "ToPort": "22", "CidrIp": "0.0.0.0/0" },
+		    { "IpProtocol" : "tcp", "FromPort" : "80", "ToPort" : "80", "SourceSecurityGroupOwnerId" : {"Fn::GetAtt" : ["elb1", "SourceSecurityGroup.OwnerAlias"]}, "SourceSecurityGroupName" : {"Fn::GetAtt" : ["elb1", "SourceSecurityGroup.GroupName"]} }
+		]
+	    }
+	},
+
+	"FEAutoScalingGroup" : {
+	    "Type" : "AWS::AutoScaling::AutoScalingGroup",
+	    "DependsOn" : "PuppetMasterWaitCondition",
+	    "Properties" : {
+		"AvailabilityZones" : { "Fn::GetAZs" : "" },
+		"LaunchConfigurationName" : { "Ref" : "FELaunchConfig" },
+		"MinSize" : { "Ref" : "MinFEInstances" },
+		"MaxSize" : { "Ref" : "MaxFEInstances" },
+		"LoadBalancerNames" : [ { "Ref" : "elb1" } ]
+	    }
+	},
+	
+	"FELaunchConfig" : {
+	    "Type" : "AWS::AutoScaling::LaunchConfiguration",
+	    "Metadata" : {
+		"AWS::CloudFormation::Init" : {
+		    "config" : {
+			"packages" : {
+			    "apt" : {
+				"puppet" : [],
+				"ruby-dev" : [],
+				"gcc" : [],
+				"make" : [],
+				"rubygems" : []
+			    },
+			    "rubygems" : {
+				"json" : []
+			    }
+			},
+			"files" : {
+			    "/etc/puppet/puppet.conf" : {
+				"content" : { "Fn::Join" : ["", [
+				    "[main]\n",
+				    " logdir=/var/log/puppet\n",
+				    " rundir=/var/run/puppet\n",
+				    " ssldir=$vardir/ssl\n",
+				    " pluginsync=true\n",
+				    "[agent]\n",
+				    " classfile=$vardir/classes.txt\n",
+				    " localconfig=$vardir/localconfig\n",
+				    " server=", { "Fn::GetAtt" : [ "cc1", "PrivateDnsName" ] }, "\n" ]] },
+				"mode" : "000644",
+				"owner" : "root",
+				"group" : "root"
+			    },
+			    "/etc/default/puppet" : {
+				"content" : { "Fn::Join" : [ "", [
+				    "START=yes\n",
+				    "SERVER=`curl http://169.254.169.254/latest/meta-data/hostname`\n",
+				    "CERTNAME=fe-`echo $SERVER | tr '[:upper:]' '[:lower:]'`\n",
+				    "DAEMON_OPTS=\"--certname $CERTNAME\"\n"
+				    ] ] },
+				"mode" : "000644",
+				"owner" : "root",
+				"group" : "root"
+			    }
+			},
+			"services" : {
+			    "sysvinit" : {
+				"puppet" : {
+				    "enabled" : "true",
+				    "ensureRunning" : "true"
+				}
+			    }
+			}
+		    }
+		},
+		"Puppet" : {
+		    "cc1_address" : { "Fn::GetAtt" : [ "cc1", "PrivateIp" ] },
+		    "app_bucket_url" : { "Fn::Join" : [ "", [ "https://", { "Fn::GetAtt" : [ "AppBucket", "DomainName" ] } ] ] },
+		    "app_queue_url" : { "Ref" : "AppQueue" },
+		    "app_user_access_key_id" : { "Ref" : "AppUserKeys" },
+		    "app_user_secret_access_key" : { "Fn::GetAtt" : [ "AppUserKeys", "SecretAccessKey" ] }
+		}
+	    },
+	    "Properties" : {
+		"KeyName" : { "Ref" : "KeyName" },
+		"ImageId" : { "Fn::FindInMap" : [ "AWSRegionArch2AMI", { "Ref" : "AWS::Region" },
+						  { "Fn::FindInMap" : [ "AWSInstanceType2Arch", { "Ref" : "FEInstanceType" },
+									"Arch" ] } ] },
+		"SecurityGroups" : [ { "Ref" : "FESecurityGroup" } ],
+		"InstanceType" : { "Ref" : "FEInstanceType" },
+		"UserData" : { 
+		    "Fn::Base64" : { 
+			"Fn::Join" : ["", [ "#!/bin/bash\n",
+					    "apt-get -y update\n",
+					    "apt-get -y install python-setuptools\n",
+					    "easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
+					    "/usr/local/bin/cfn-init -v --region ", { "Ref" : "AWS::Region" },
+					    " -s ", { "Ref" : "AWS::StackName" }, " -r FELaunchConfig ",
+					    " --access-key ", { "Ref" : "CFNInitUserKeys" },
+					    " --secret-key ", { "Fn::GetAtt" : ["CFNInitUserKeys", "SecretAccessKey"]}, "\n",
+					    "/usr/local/bin/cfn-signal -e $? '", { "Ref" : "FEWaitHandle" }, "'\n" ] ]
+		    }
+		}
+	    }
+	},
+
+	"elb1" : {
+	    "Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
+	    "Properties" : {
+		"AvailabilityZones" : { "Fn::GetAZs" : "" },
+		"Listeners" : [ {
+		    "LoadBalancerPort" : "80",
+		    "InstancePort" : "80",
+		    "Protocol" : "HTTP"
+		} ],
+		"HealthCheck" : {
+		    "Target" : "HTTP:80/",
+		    "HealthyThreshold" : "3",
+		    "UnhealthyThreshold" : "5",
+		    "Interval" : "30",
+		    "Timeout" : "5"
+		}
+	    }
+	},
+
+	"FEWaitHandle" : {
+	    "Type" : "AWS::CloudFormation::WaitConditionHandle"
+	},
+
+	"FEWaitCondition" : {
+	    "Type" : "AWS::CloudFormation::WaitCondition",
+	    "DependsOn" : "FEAutoScalingGroup",
+	    "Properties" : {
+		"Handle" : { "Ref" : "FEWaitHandle" },
+		"Timeout" : "900"
+	    }
+	},
+
+	"BESecurityGroup" : {
+	    "Type" : "AWS::EC2::SecurityGroup",
+	    "Properties" : {
+		"GroupDescription" : "Security group for BE instances",
+		"SecurityGroupIngress" : [
+		    { "IpProtocol" : "tcp", "FromPort": "22", "ToPort": "22", "CidrIp": "0.0.0.0/0" }
+		]
+	    }
+	},
+
+	"BEAutoScalingGroup" : {
+	    "Type" : "AWS::AutoScaling::AutoScalingGroup",
+	    "DependsOn" : "PuppetMasterWaitCondition",
+	    "Properties" : {
+		"AvailabilityZones" : { "Fn::GetAZs" : "" },
+		"LaunchConfigurationName" : { "Ref" : "BELaunchConfig" },
+		"MinSize" : { "Ref" : "MinBEInstances" },
+		"MaxSize" : { "Ref" : "MaxBEInstances" } 
+	    }
+	},
+	
+	"BELaunchConfig" : {
+	    "Type" : "AWS::AutoScaling::LaunchConfiguration",
+	    "Metadata" : {
+		"AWS::CloudFormation::Init" : {
+		    "config" : {
+			"packages" : {
+			    "apt" : {
+				"puppet" : [],
+				"ruby-dev" : [],
+				"gcc" : [],
+				"make" : [],
+				"rubygems" : []
+			    },
+			    "rubygems" : {
+				"json" : []
+			    }
+			},
+			"files" : {
+			    "/etc/puppet/puppet.conf" : {
+				"content" : { "Fn::Join" : ["", [
+				    "[main]\n",
+				    " logdir=/var/log/puppet\n",
+				    " rundir=/var/run/puppet\n",
+				    " ssldir=$vardir/ssl\n",
+				    " pluginsync=true\n",
+				    "[agent]\n",
+				    " classfile=$vardir/classes.txt\n",
+				    " localconfig=$vardir/localconfig\n",
+				    " server=", { "Fn::GetAtt" : [ "cc1", "PrivateDnsName" ] }, "\n" ]] },
+				"mode" : "000644",
+				"owner" : "root",
+				"group" : "root"
+			    },
+			    "/etc/default/puppet" : {
+				"content" : { "Fn::Join" : [ "", [
+				    "START=yes\n",
+				    "SERVER=`curl http://169.254.169.254/latest/meta-data/hostname`\n",
+				    "CERTNAME=be-`echo $SERVER | tr '[:upper:]' '[:lower:]'`\n",
+				    "DAEMON_OPTS=\"--certname $CERTNAME\"\n"
+				    ] ] },
+				"mode" : "000644",
+				"owner" : "root",
+				"group" : "root"
+			    }
+			},
+			"services" : {
+			    "sysvinit" : {
+				"puppet" : {
+				    "enabled" : "true",
+				    "ensureRunning" : "true"
+				}
+			    }
+			}
+		    }
+		},
+		"Puppet" : {
+		    "cc1_address" : { "Fn::GetAtt" : [ "cc1", "PrivateIp" ] },
+		    "app_bucket_url" : { "Fn::Join" : [ "", [ "https://", { "Fn::GetAtt" : [ "AppBucket", "DomainName" ] } ] ] },
+		    "app_queue_url" : { "Ref" : "AppQueue" },
+		    "app_user_access_key_id" : { "Ref" : "AppUserKeys" },
+		    "app_user_secret_access_key" : { "Fn::GetAtt" : [ "AppUserKeys", "SecretAccessKey" ] }
+		}
+	    },
+	    "Properties" : {
+		"KeyName" : { "Ref" : "KeyName" },
+		"ImageId" : { "Fn::FindInMap" : [ "AWSRegionArch2AMI", { "Ref" : "AWS::Region" },
+						  { "Fn::FindInMap" : [ "AWSInstanceType2Arch", { "Ref" : "BEInstanceType" },
+									"Arch" ] } ] },
+		"SecurityGroups" : [ { "Ref" : "BESecurityGroup" } ],
+		"InstanceType" : { "Ref" : "BEInstanceType" },
+		"UserData" : { 
+		    "Fn::Base64" : { 
+			"Fn::Join" : ["", [ "#!/bin/bash\n",
+					    "apt-get -y update\n",
+					    "apt-get -y install python-setuptools\n",
+					    "easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
+					    "/usr/local/bin/cfn-init -v --region ", { "Ref" : "AWS::Region" },
+					    " -s ", { "Ref" : "AWS::StackName" }, " -r BELaunchConfig ",
+					    " --access-key ", { "Ref" : "CFNInitUserKeys" },
+					    " --secret-key ", { "Fn::GetAtt" : ["CFNInitUserKeys", "SecretAccessKey"]}, "\n" ] ]
+		    }
+		}
+	    }
+	}
+
+    },
+	
+    "Outputs" : {
+
+	"cc1PublicDNSName" : {
+	    "Value" : { "Fn::GetAtt" : [ "cc1", "PublicDnsName" ] },
+	    "Description" : "Public DNS Name of cc1"
+	},
+
+	"elb1PublicDNSName" : {
+	    "Value" : { "Fn::GetAtt" : [ "elb1", "DNSName" ] },
+	    "Description" : "Public DNS name of elb1" 
+	},
+
+	"appBucketURL" : {
+	    "Value" : { "Fn::Join" : [ "", [ "https://", { "Fn::GetAtt" : [ "AppBucket", "DomainName" ] } ] ] },
+	    "Description" : "URL of application S3 bucket"
+	},
+
+	"appQueueURL" : {
+	    "Value" : { "Ref" : "AppQueue" },
+	    "Description" : "URL of application SQS Queue"
+	}
+
+    }
+
+}
