@@ -170,13 +170,11 @@ Puppet Configuration
 * Generate cert names for puppet clients that encode their personality
   (cc, fe, be) so we can match on them in `nodes.pp`. The default is
   to generate a certificate based on hostname, but this is problematic
-  because:
-  
-    1. Hostnames are unpredictable, and in the case of auto-scaling 
-	   groups, the number/identity of nodes isn't known in advance
-	   or obvious from the hostname;
-	2. Puppet seems to have issues with uppercase characters in
-	   certificate names, which appear in instance hostnames.
+  because hostnames are unpredictable, and in the case of auto-scaling 
+  groups, the number/identity of nodes isn't known in advance or 
+  obvious from the hostname. Also Puppet seems to have issues with
+  uppercase characters in certificate names, which appear in instance
+  hostnames.
 	   
   So the approach is to figure out the AWS assigned hostname (via a call
   to `http://169.254.169.254/latest/meta-data/hostname`, force it to
@@ -196,11 +194,15 @@ Puppet Modules
 ==============
 
 * NTP
+* Apache 2 with mod_wsgi
+* Syslog
 
 
 TODO
 ====
 
+* Deploy application code into virtualenv, connect with WSGI
+* Generate stack configuration file
 * RDS (or other) database instance
 * ElastiCache layer
 

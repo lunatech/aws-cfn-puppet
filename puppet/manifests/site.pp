@@ -1,3 +1,5 @@
+$python_major_version = "2"
+
 node basenode {
 
   include cfn
