@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+VIRTUALENV=$1
+source $VIRTUALENV/bin/activate || exit 1
+shift
+
+SCRIPT=$1
+[ -f $SCRIPT ] || exit 2
+shift
+
+<%= python::python_interpreter %> $SCRIPT $@

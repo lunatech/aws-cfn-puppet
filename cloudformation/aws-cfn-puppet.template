@@ -67,18 +67,6 @@
 	    "ConstraintDescription" : "Must be a whole number >= 30"
 	},
 
-	"PuppetSourcesBucket" : {
-	    "Description" : "Name of S3 bucket containing Puppet source to deploy to puppet master",
-	    "Type" : "String",
-	    "Default" : "d5edb76b-de62-4972-b017-6f147d893007"
-	},
-
-	"PuppetSourcesFile" : {
-	    "Description" : "Name of file in PuppetSourcesBucket containing Puppet source to deploy to puppet master",
-	    "Type" : "String",
-	    "Default" : "puppet.tar.gz"
-	},
-
 	"KeyName" : {
 	    "Description" : "Name of EC2 key pair for SSH access to EC2 instances",
 	    "Type" : "String"
@@ -189,7 +177,7 @@
 			    }
 			},
 			"sources" : {
-			    "/etc/puppet" : { "Fn::Join" : [ "", [ "https://s3.amazonaws.com/", { "Ref" : "PuppetSourcesBucket" } , "/", { "Ref" : "PuppetSourcesFile" } ] ] }
+			    "/tmp/aws-cfn-puppet" : "https://github.com/sean8223/aws-cfn-puppet/tarball/master"
 			},
 			"files" : {
 			    "/var/dist/.placeholder" : {
@@ -246,6 +234,12 @@
 				"mode" : "000644",
 				"owner" : "root",
 				"group" : "root"
+			    }
+			},
+			"commands" : {
+			    "rsync" : {
+				"command" : "rsync -Cavz puppet/ /etc/puppet/",
+				"cwd" : "/tmp/aws-cfn-puppet"
 			    }
 			},
 			"services" : {

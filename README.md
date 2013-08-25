@@ -32,7 +32,6 @@ Puppet with the following features:
 * Back-end servers driven by message queues
 * Shared storage file storage
 * Centralized management of common services (e.g.logging)
-* Restricted access
 * Python with Apache and mod_wsgi
 
 I'm taking advantage of Amazon infrastructure services wherever
@@ -41,6 +40,7 @@ possible:
 * S3 for file storage
 * SQS for messaging between the front-end and back-end servers
 * Autoscaling groups to manage server load
+* Restricted access to machines with security groups
 * ELB for load balancing
 
 The general approach is to use CloudFormation to provision all AWS

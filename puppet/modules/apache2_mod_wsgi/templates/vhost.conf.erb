@@ -1,0 +1,35 @@
+# fnord
+
+<VirtualHost <%= vhost_name %>:<%= port %>>
+
+   DocumentRoot <%= document_root %>
+
+   <Directory <%= document_root %>>
+      Options Indexes FollowSymLinks MultiViews
+      AllowOverride None
+      Order allow,deny
+      allow from all
+   </Directory>
+
+   LogLevel info
+   CustomLog "|/usr/bin/logger -i -tapache2 -plocal1.info" combined
+   ErrorLog syslog:local2
+
+   <% if defined? @wsgi_script_aliases -%>
+   <% wsgi_script_aliases.each do |k,v| -%>
+   WSGIScriptAlias <%= k %> <%= v %>   
+   <% end -%>
+   <% end -%>
+
+   <% if defined? @wsgi_script_root -%>
+   # translate URLs like /wsgi/foo into aliases to $wsgi_script_root/foo.wsgi
+   WSGIScriptAliasMatch ^/wsgi/([^/]+) <%= wsgi_script_root %>/$1.wsgi
+
+   <Directory <%= wsgi_script_root %>>
+      Order allow,deny
+      Allow from all
+   </Directory>
+   <% end -%>
+   
+
+</VirtualHost>

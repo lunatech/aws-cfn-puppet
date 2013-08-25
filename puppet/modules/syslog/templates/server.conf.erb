@@ -1,0 +1,19 @@
+$ModLoad imtcp
+$ModLoad imudp
+
+$template RemoteHost,"/var/log/hosts/%HOSTNAME%/%$YEAR%/%$MONTH%/%$DAY%/syslog"
+$template Local1,"/var/log/consolidated/local1/%$YEAR%/%$MONTH%/%$DAY%/local1.log"
+$template Local2,"/var/log/consolidated/local2/%$YEAR%/%$MONTH%/%$DAY%/local2.log"
+$template Local3,"/var/log/consolidated/local2/%$YEAR%/%$MONTH%/%$DAY%/local3.log"
+
+$RuleSet remote
+*.* ?RemoteHost
+local1.* ?Local1
+local2.* ?Local2
+local3.* ?Local3
+
+$InputTCPServerBindRuleset remote
+$InputTCPServerRun <%= tcp_port %> 
+
+$UDPServerRun <%= udp_port %>
+

@@ -1,0 +1,10 @@
+<IfModule wsgi_module>
+	  # this should contain server-wide configuration directives; put
+	  # context-specific ones inside an appropriate VirtualHost
+	  <% if defined? @global_wsgi_python_home -%>
+
+	  # use this virtualenv for all WSGI apps hosted in this server
+	  WSGIPythonHome <%= global_wsgi_python_home %>
+	  <% end -%>
+
+</IfModule>
