@@ -15,7 +15,7 @@ node basenode {
   file { "/etc/hello.conf" :
     content => template("hello/hello.conf.erb"),
     owner => "root",
-    group => "root"
+    group => "root",
     mode => 0644
   }
 
