@@ -12,6 +12,13 @@ node basenode {
 
   python::virtualenv { "/var/virtualenv" : }
 
+  file { "/etc/hello.conf" :
+    content => template("hello/hello.conf.erb"),
+    owner => "root",
+    group => "root"
+    mode => 0644
+  }
+
 }
 
 node /^cc\-.*internal$/ inherits basenode {
@@ -63,6 +70,14 @@ node /^fe\-.*internal$/ inherits basenode {
     wsgi_script_aliases => {
       "/hello" => "/var/www/wsgi/hello.wsgi",
     }
+  }
+
+  file { "/var/www/wsgi/hello.wsgi" :
+    source => "puppet:///modules/hello/hello.wsgi",
+    owner => "root",
+    group => "root",
+    mode => 0644,
+    require => File["/var/www/wsgi"]
   }
 
 }
