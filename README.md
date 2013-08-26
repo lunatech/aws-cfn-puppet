@@ -17,8 +17,18 @@ Quick Start
 	
 4. Connect to your stack via SSH as the user "ubuntu" at the address
    contained in output `cc1PublicDNSName`; Connect to front-end servers
-   via HTTP at address contained in output `elb1PublicDNSName`. You can
-   obtain these values from the `cfn-describe-stack-resources` command.
+   via HTTP at address contained in output `elb1PublicDNSName`. For
+   example, to connect to the `cc1` node issue a command like:
+   
+        ssh ubuntu@ec2-54-211-176-173.compute-1.amazonaws.com
+   
+   Or to access the web application:
+   
+        curl http://Demo-elb1-1BVWGP4PF017T-1442325718.us-east-1.elb.amazonaws.com/hello
+   
+   Note that these host names are only examples; You must obtain the actual
+   values for these resources in your stack via the 
+   `cfn-describe-stack-resources` command.
 
 
 Overview
@@ -193,16 +203,34 @@ Puppet Configuration
 Puppet Modules
 ==============
 
-* NTP
-* Apache 2 with mod_wsgi
-* Syslog
+Once the servers are started, Puppet takes over the configuration and
+starts installing software on the front- and back-end hosts. The
+file `site.pp` describes the configuration of nodes based on their role
+(cc, fe or be).
+
+Each machine will be outfitted with common services, including ntpd and
+syslog. Syslog on all machines will be set to forward logs to `cc1`
+over TCP. On `cc1` individual machine logs will be stored in
+`/var/log/hosts` and select logs (for facilities local1, local2 and local3)
+will be aggregaged into files under `/var/log/consolidated`.
+
+Additionally, each machine will have Python installed and a virtualenv 
+created at `/var/virtualenv`. The front-end machines will also
+be outfitted with Apache 2 and mod_wsgi. A sample WSGI application is
+available at `/hello` on the front-end machines that prints out a
+the Python configuration. You should see that its source root is the
+virtualenv created above.
+
+Lastly, a configuration file will be generated at `/etc/hello.conf` for 
+use by application components. This will contain the AWS credentials for
+the `AppUser` configured for the stack and the endpoint URLs for the
+S3 `AppBucket` and SQS `AppQueue`.
 
 
 TODO
 ====
 
-* Deploy application code into virtualenv, connect with WSGI
-* Generate stack configuration file
+* Deploy application code into virtualenv
 * RDS (or other) database instance
 * ElastiCache layer
 
