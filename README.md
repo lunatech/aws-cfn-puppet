@@ -49,6 +49,7 @@ possible:
 
 * S3 for file storage
 * SQS for messaging between the front-end and back-end servers
+* SDB domain for storing undeliverable messages (DLO)
 * Autoscaling groups to manage server load
 * Restricted access to machines with security groups
 * ELB for load balancing
@@ -95,9 +96,9 @@ reference Ubuntu 12.04 images taken from <http://cloud-images.ubuntu.com/locator
 The template creates two IAM users: `CFNInitUser` and `AppUser`.
 `CFNInitUser` exists solely to execute the `cfn-init` command at instance
 startup time and is only given permission to run the `DescribeStackResources`
-command; `AppUser` is given full access to the S3 `AppBucket` and SQS
-`AppQueue` resources and is created to allow application code to utilize
-them.
+command; `AppUser` is given full access to the S3 `AppBucket`, SQS
+`AppQueue` and SDB `AppQueueDeadLetterOffice` resources and is created
+to allow application code to utilize them.
 
 The template creates an EC2 instance `cc1` that is intended to function
 as a command-and-control node for the stack. It will function as a Puppet
@@ -135,6 +136,7 @@ Lastly, the template produces the following outputs:
 |elb1PublicDNSName|Public DNS name of the `elb1` load balancer|
 |appBucketURL|URL endpoint for the S3 `AppBucket`|
 |appQueueURL|URL endpoint for the SQS `AppQueue`|
+|appQueueDeadLetterOfficeDomainName|Name of the SDB domain for storing undeliverable messages sent to `AppQueue`|
 
 
 Stack Startup
@@ -176,6 +178,7 @@ Puppet Configuration
   |app_user_secret_access_key||
   |app_bucket_url|URL endpoint for the S3 `AppBucket`|
   |app_queue_url|URL endpoint for the SQS `AppQueue`|
+  |app_queue_dead_letter_office_domain_name|Name of the SDB domain for storing undeliverable messages sent to `AppQueue`|
 
 * Generate cert names for puppet clients that encode their personality
   (cc, fe, be) so we can match on them in `nodes.pp`. The default is

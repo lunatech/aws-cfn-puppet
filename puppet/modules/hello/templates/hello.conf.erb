@@ -3,7 +3,10 @@ AWS_ACCESS_KEY_ID="<%= cfn_app_user_access_key_id %>"
 AWS_SECRET_ACCESS_KEY="<%= cfn_app_user_secret_access_key %>"
 
 # S3 bucket for storing files
-S3_BUCKET_URL="<%= cfn_app_bucket_url %>"
+APP_BUCKET_URL="<%= cfn_app_bucket_url %>"
 
 # SQS queue for dispatching tasks to back-end workers
-SQS_QUEUE_URL="<%= cfn_app_queue_url %>"
+APP_QUEUE_URL="<%= cfn_app_queue_url %>"
+
+# SDB domain for storing undeliverable messages
+APP_QUEUE_DEAD_LETTER_OFFICE_DOMAIN_NAME="<%= cfn_app_queue_dead_letter_office_domain_name %>"

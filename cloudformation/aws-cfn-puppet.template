@@ -62,7 +62,7 @@
 	"AppQueueVisibilityTimeout" : {
 	    "Description" : "Visibility timeout (in seconds) for the application queue",
 	    "Type" : "Number",
-	    "Default" : "300",
+	    "Default" : "30",
 	    "MinValue" : "30",
 	    "ConstraintDescription" : "Must be a whole number >= 30"
 	},
@@ -133,6 +133,10 @@
 			    { "Effect" : "Allow",
 			      "Action" : [ "sqs:*" ],
 			      "Resource" : [ { "Fn::GetAtt" : [ "AppQueue", "Arn" ] } ]
+			    },
+			    { "Effect" : "Allow",
+			      "Action" : [ "sdb:Batch*", "sdb:DeleteAttributes", "sdb:DomainMetadata", "sdb:GetAttributes", "sdb:ListDomains", "sdb:PutAttributes", "sdb:Select" ],
+			      "Resource" : [ { "Fn::Join" : [ "", [ "arn:aws:sdb:", { "Ref" : "AWS::Region" }, "::domain/", { "Ref" : "AppQueueDeadLetterOffice" } ] ] } ]
 			    }
 			]
 		    }
@@ -156,6 +160,10 @@
 	    "Properties" : {
 		"VisibilityTimeout" : { "Ref" : "AppQueueVisibilityTimeout" }
 	    }
+	},
+
+	"AppQueueDeadLetterOffice" : {
+	    "Type" : "AWS::SDB::Domain"
 	},
 
 	"cc1" : {
@@ -260,7 +268,8 @@
 		    "app_bucket_url" : { "Fn::Join" : [ "", [ "https://", { "Fn::GetAtt" : [ "AppBucket", "DomainName" ] } ] ] },
 		    "app_queue_url" : { "Ref" : "AppQueue" },
 		    "app_user_access_key_id" : { "Ref" : "AppUserKeys" },
-		    "app_user_secret_access_key" : { "Fn::GetAtt" : [ "AppUserKeys", "SecretAccessKey" ] }
+		    "app_user_secret_access_key" : { "Fn::GetAtt" : [ "AppUserKeys", "SecretAccessKey" ] },
+		    "app_queue_dead_letter_office_domain_name" : { "Ref" : "AppQueueDeadLetterOffice" } 
 		}
 
 	    },
@@ -416,7 +425,8 @@
 		    "app_bucket_url" : { "Fn::Join" : [ "", [ "https://", { "Fn::GetAtt" : [ "AppBucket", "DomainName" ] } ] ] },
 		    "app_queue_url" : { "Ref" : "AppQueue" },
 		    "app_user_access_key_id" : { "Ref" : "AppUserKeys" },
-		    "app_user_secret_access_key" : { "Fn::GetAtt" : [ "AppUserKeys", "SecretAccessKey" ] }
+		    "app_user_secret_access_key" : { "Fn::GetAtt" : [ "AppUserKeys", "SecretAccessKey" ] },
+		    "app_queue_dead_letter_office_domain_name" : { "Ref" : "AppQueueDeadLetterOffice" } 
 		}
 	    },
 	    "Properties" : {
@@ -602,6 +612,11 @@
 	"appQueueURL" : {
 	    "Value" : { "Ref" : "AppQueue" },
 	    "Description" : "URL of application SQS Queue"
+	},
+
+	"appQueueDeadLetterOfficeDomainName" : {
+	    "Value" : { "Ref" : "AppQueueDeadLetterOffice" },
+	    "Description" : "Name of the SDB domain for storing undeliverable messages sent to AppQueue"
 	}
 
     }
