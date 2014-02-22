@@ -5,7 +5,7 @@ Quick Start
 
 2. Create a EC2 key pair for remote access to your instances.
 
-3. Generate the CFN templates from the make file
+3. Generate the CFN templates from the Makefile:
 
         cd cloudformation
 		make

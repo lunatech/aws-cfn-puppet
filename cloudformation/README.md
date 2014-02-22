@@ -25,6 +25,11 @@ There are two phases to template preprocessing:
    JSON formatter should read from standard input and write to
    standard output.
    
+For example, to use the `json_pp` command to format your final
+output, run the Makefile like:
+
+    make JSONLINT=json_pp
+   
 The final template will be produced as `aws-cfn-puppet.json` in
 this directory.
    
