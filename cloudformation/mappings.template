@@ -1,0 +1,30 @@
+#ifndef __MAPPINGS
+#define __MAPPINGS 1
+
+"Mappings" : {
+
+    "AWSInstanceType2Arch" : {
+	"t1.micro" : { "Arch" : "32" },
+	"m1.small" : { "Arch" : "32" },
+	"m1.large" : { "Arch" : "64" },
+	"m1.xlarge" : { "Arch" : "64" },
+	"m2.xlarge" : { "Arch" : "64" },
+	"m2.2xlarge" : { "Arch" : "64" },
+	"m2.4xlarge" : { "Arch" : "64" },
+	"c1.medium" : { "Arch" : "32" },
+	"c1.xlarge" : { "Arch" : "64" },
+	"cc1.4xlarge" : { "Arch" : "64" }
+    },
+
+    "AWSRegionArch2AMI" : {
+	"us-east-1": {"32": "ami-21d9a948", "64": "ami-23d9a94a"}, 
+	"ap-northeast-1": {"32": "ami-4b12984a", "64": "ami-51129850"}, 
+	"ap-southeast-1": {"32": "ami-a22f66f0", "64": "ami-a02f66f2"}, 
+	"sa-east-1": {"32": "ami-227edb3f", "64": "ami-5c7edb41"}, 
+	"ap-southeast-2": {"32": "ami-914ddeab", "64": "ami-974ddead"}, 
+	"us-west-1": {"32": "ami-3a072e7f", "64": "ami-c4072e81"}, 
+	"eu-west-1": {"32": "ami-8fb1a3fb", "64": "ami-89b1a3fd"}
+    }
+},
+
+#endif

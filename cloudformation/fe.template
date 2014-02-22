@@ -1,0 +1,136 @@
+#ifndef __FE
+#define __FE 1
+
+"FEAutoScalingGroup" : {
+    "Type" : "AWS::AutoScaling::AutoScalingGroup",
+    "DependsOn" : "PuppetMasterWaitCondition",
+    "Properties" : {
+	"AvailabilityZones" : { "Fn::GetAZs" : "" },
+	"LaunchConfigurationName" : { "Ref" : "FELaunchConfig" },
+	"MinSize" : { "Ref" : "MinFEInstances" },
+	"MaxSize" : { "Ref" : "MaxFEInstances" },
+	"LoadBalancerNames" : [ { "Ref" : "elb1" } ]
+    }
+},
+
+"FELaunchConfig" : {
+    "Type" : "AWS::AutoScaling::LaunchConfiguration",
+    "Metadata" : {
+	"AWS::CloudFormation::Init" : {
+	    "config" : {
+		"packages" : {
+		    "apt" : {
+			"puppet" : [],
+			"ruby-dev" : [],
+			"gcc" : [],
+			"make" : [],
+			"rubygems" : []
+		    },
+		    "rubygems" : {
+			"json" : []
+		    }
+		},
+		"files" : {
+		    "/etc/puppet/puppet.conf" : {
+			"content" : { "Fn::Join" : ["", [
+			    "[main]\n",
+			    " logdir=/var/log/puppet\n",
+			    " rundir=/var/run/puppet\n",
+			    " ssldir=$vardir/ssl\n",
+			    " pluginsync=true\n",
+			    "[agent]\n",
+			    " classfile=$vardir/classes.txt\n",
+			    " localconfig=$vardir/localconfig\n",
+			    " server=", { "Fn::GetAtt" : [ "cc1", "PrivateDnsName" ] }, "\n" ]] },
+			"mode" : "000644",
+			"owner" : "root",
+			"group" : "root"
+		    },
+		    "/etc/default/puppet" : {
+			"content" : { "Fn::Join" : [ "", [
+			    "START=yes\n",
+			    "SERVER=`curl http://169.254.169.254/latest/meta-data/hostname`\n",
+			    "CERTNAME=fe-`echo $SERVER | tr '[:upper:]' '[:lower:]'`\n",
+			    "DAEMON_OPTS=\"--certname $CERTNAME\"\n"
+			] ] },
+			"mode" : "000644",
+			"owner" : "root",
+			"group" : "root"
+		    }
+		},
+		"services" : {
+		    "sysvinit" : {
+			"puppet" : {
+			    "enabled" : "true",
+			    "ensureRunning" : "true"
+			}
+		    }
+		}
+	    }
+	},
+	"Puppet" : {
+	    "cc1_address" : { "Fn::GetAtt" : [ "cc1", "PrivateIp" ] },
+	    "app_bucket_url" : { "Fn::Join" : [ "", [ "https://", { "Fn::GetAtt" : [ "AppBucket", "DomainName" ] } ] ] },
+	    "app_queue_url" : { "Ref" : "AppQueue" },
+	    "app_user_access_key_id" : { "Ref" : "AppUserKeys" },
+	    "app_user_secret_access_key" : { "Fn::GetAtt" : [ "AppUserKeys", "SecretAccessKey" ] },
+	    "app_queue_dead_letter_office_domain_name" : { "Ref" : "AppQueueDeadLetterOffice" } 
+	}
+    },
+    "Properties" : {
+	"KeyName" : { "Ref" : "KeyName" },
+	"ImageId" : { "Fn::FindInMap" : [ "AWSRegionArch2AMI", { "Ref" : "AWS::Region" },
+					  { "Fn::FindInMap" : [ "AWSInstanceType2Arch", { "Ref" : "FEInstanceType" },
+								"Arch" ] } ] },
+	"SecurityGroups" : [ { "Ref" : "FESecurityGroup" } ],
+	"InstanceType" : { "Ref" : "FEInstanceType" },
+	"UserData" : { 
+	    "Fn::Base64" : { 
+		"Fn::Join" : ["", [ "#!/bin/bash\n",
+				    "apt-get -y update\n",
+				    "apt-get -y install python-setuptools\n",
+				    "easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
+				    "/usr/local/bin/cfn-init -v --region ", { "Ref" : "AWS::Region" },
+				    " -s ", { "Ref" : "AWS::StackName" }, " -r FELaunchConfig ",
+				    " --access-key ", { "Ref" : "CFNInitUserKeys" },
+				    " --secret-key ", { "Fn::GetAtt" : ["CFNInitUserKeys", "SecretAccessKey"]}, "\n",
+				    "/usr/local/bin/cfn-signal -e $? '", { "Ref" : "FEWaitHandle" }, "'\n" ] ]
+	    }
+	}
+    }
+},
+
+"elb1" : {
+    "Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
+    "Properties" : {
+	"AvailabilityZones" : { "Fn::GetAZs" : "" },
+	"Listeners" : [ {
+	    "LoadBalancerPort" : "80",
+	    "InstancePort" : "80",
+	    "Protocol" : "HTTP"
+	} ],
+	"HealthCheck" : {
+	    "Target" : "HTTP:80/",
+	    "HealthyThreshold" : "3",
+	    "UnhealthyThreshold" : "5",
+	    "Interval" : "30",
+	    "Timeout" : "5"
+	}
+    }
+},
+
+"FEWaitHandle" : {
+    "Type" : "AWS::CloudFormation::WaitConditionHandle"
+},
+
+"FEWaitCondition" : {
+    "Type" : "AWS::CloudFormation::WaitCondition",
+    "DependsOn" : "FEAutoScalingGroup",
+    "Properties" : {
+	"Handle" : { "Ref" : "FEWaitHandle" },
+	"Timeout" : "900"
+    }
+},
+
+#endif
+

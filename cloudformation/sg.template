@@ -1,0 +1,58 @@
+#ifndef __SG
+#define __SG 1
+
+"SyslogSecurityGroup" : {
+    "Type" : "AWS::EC2::SecurityGroup",
+    "Properties" : {
+	"GroupDescription" : "Allows client access to syslog on cc1",
+	"SecurityGroupIngress" : [
+	    { "IpProtocol" : "tcp", "FromPort" : "10514", "ToPort" : "10514", "SourceSecurityGroupName" : { "Ref" : "FESecurityGroup" } },
+	    { "IpProtocol" : "tcp", "FromPort" : "10514", "ToPort" : "10514", "SourceSecurityGroupName" : { "Ref" : "BESecurityGroup" } }
+	]
+    }
+},
+
+"PuppetMasterSecurityGroup" : {
+    "Type" : "AWS::EC2::SecurityGroup",
+    "Properties" : {
+	"GroupDescription" : "Allows Puppet clients to access puppetmaster on cc1",
+	"SecurityGroupIngress" : [
+	    { "IpProtocol" : "tcp", "FromPort" : "8140", "ToPort" : "8140", "SourceSecurityGroupName" : { "Ref" : "FESecurityGroup" } },
+	    { "IpProtocol" : "tcp", "FromPort" : "8140", "ToPort" : "8140", "SourceSecurityGroupName" : { "Ref" : "BESecurityGroup" } }
+	]
+    }
+},
+
+"CCSecurityGroup" : {
+    "Type" : "AWS::EC2::SecurityGroup",
+    "Properties" : {
+	"GroupDescription" : "Allows SSH access to cc1 from the world",
+	"SecurityGroupIngress" : [
+	    { "IpProtocol" : "tcp", "FromPort": "22", "ToPort": "22", "CidrIp": "0.0.0.0/0" }
+	] 
+
+    }
+},
+
+"FESecurityGroup" : {
+    "Type" : "AWS::EC2::SecurityGroup",
+    "Properties" : {
+	"GroupDescription" : "Security group for FE instances",
+	"SecurityGroupIngress" : [
+	    { "IpProtocol" : "tcp", "FromPort": "22", "ToPort": "22", "CidrIp": "0.0.0.0/0" },
+	    { "IpProtocol" : "tcp", "FromPort" : "80", "ToPort" : "80", "SourceSecurityGroupOwnerId" : {"Fn::GetAtt" : ["elb1", "SourceSecurityGroup.OwnerAlias"]}, "SourceSecurityGroupName" : {"Fn::GetAtt" : ["elb1", "SourceSecurityGroup.GroupName"]} }
+	]
+    }
+},
+
+"BESecurityGroup" : {
+    "Type" : "AWS::EC2::SecurityGroup",
+    "Properties" : {
+	"GroupDescription" : "Security group for BE instances",
+	"SecurityGroupIngress" : [
+	    { "IpProtocol" : "tcp", "FromPort": "22", "ToPort": "22", "CidrIp": "0.0.0.0/0" }
+	]
+    }
+},
+
+#endif

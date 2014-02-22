@@ -5,9 +5,14 @@ Quick Start
 
 2. Create a EC2 key pair for remote access to your instances.
 
+3. Generate the CFN templates from the make file
+
+        cd cloudformation
+		make
+
 3. Create the stack and monitor its progress with the commands:
 
-        cfn-create-stack Demo -d --parameters "KeyName=<YOUR KEY NAME HERE>" --template-file cloudformation/aws-cfn-puppet.template --capabilities CAPABILITY_IAM
+        cfn-create-stack Demo -d --parameters "KeyName=<YOUR KEY NAME HERE>" --template-file aws-cfn-puppet.json --capabilities CAPABILITY_IAM
 		cfn-describe-stack-events Demo
    
    Substitute your key name appropriately. The "-d" parameter will prevent

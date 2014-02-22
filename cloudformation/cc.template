@@ -1,0 +1,147 @@
+#ifndef __CC
+#define __CC 1
+
+"cc1" : {
+    "Type" : "AWS::EC2::Instance",
+    "Metadata" : {
+	"AWS::CloudFormation::Init" : {
+	    "config" : {
+		"packages" : {
+		    "apt" : {
+			"puppet" : [],
+			"puppetmaster" : [],
+ 			"ruby-dev" : [],
+			"gcc" : [],
+			"make" : [],
+			"rubygems" : []
+		    },
+		    "rubygems" : {
+			"json" : []
+		    }
+		},
+		"sources" : {
+		    "/tmp/aws-cfn-puppet" : "https://github.com/sean8223/aws-cfn-puppet/tarball/master"
+		},
+		"files" : {
+		    "/var/dist/.placeholder" : {
+			"mode" : "100644",
+			"owner" : "root",
+			"group" : "root",
+			"content" : "# Placeholder for creating /var/dist\n"
+		    },
+		    "/etc/puppet/autosign.conf" : {
+			"content" : "*.internal\n",
+			"mode" : "100644",
+			"owner" : "root",
+			"group" : "root"
+		    },
+		    "/etc/puppet/fileserver.conf" : {
+			"content" : "[modules]\n allow *.internal\n\n[dist]\n path /var/dist\n allow *.internal\n\n",
+			"mode" : "100644",
+			"owner" : "root",
+			"group" : "root"
+		    }, 
+		    "/etc/puppet/puppet.conf" : {
+			"content" : { "Fn::Join" : ["", [
+			    "[main]\n",
+			    " logdir=/var/log/puppet\n",
+			    " rundir=/var/run/puppet\n",
+			    " ssldir=$vardir/ssl\n",
+			    " pluginsync=true\n",
+			    "[agent]\n",
+			    " classfile=$vardir/classes.txt\n",
+			    " localconfig=$vardir/localconfig\n"]] },
+			"mode" : "000644",
+			"owner" : "root",
+			"group" : "root"
+		    },
+		    "/etc/puppet/modules/cfn/manifests/init.pp" : {
+			"content" : "class cfn {}",
+			"mode" : "100644",
+			"owner" : "root",
+			"group" : "root"
+		    },
+		    "/etc/puppet/modules/cfn/lib/facter/cfn.rb" : {
+			"source" : "https://s3.amazonaws.com/cloudformation-examples/cfn-facter-plugin.rb",
+			"mode" : "100644",
+			"owner" : "root",
+			"group" : "root"
+		    },
+		    "/etc/default/puppet" : {
+			"content" : { "Fn::Join" : [ "", [
+			    "START=yes\n",
+			    "SERVER=`curl http://169.254.169.254/latest/meta-data/hostname`\n",
+			    "CERTNAME=cc-`echo $SERVER | tr '[:upper:]' '[:lower:]'`\n",
+			    "DAEMON_OPTS=\"--certname $CERTNAME --server $SERVER\"\n"
+			] ] },
+			"mode" : "000644",
+			"owner" : "root",
+			"group" : "root"
+		    }
+		},
+		"commands" : {
+		    "rsync" : {
+			"command" : "rsync -Cavz puppet/ /etc/puppet/",
+			"cwd" : "/tmp/aws-cfn-puppet"
+		    }
+		},
+		"services" : {
+		    "sysvinit" : { 
+			"puppetmaster" : {
+			    "enabled" : "true",
+			    "ensureRunning" : "true" 
+			},
+			"puppet" : {
+			    "enabled" : "true",
+			    "ensureRunning" : "true" 
+			}
+		    }
+		}
+	    }
+	},
+	"Puppet" : {
+	    "app_bucket_url" : { "Fn::Join" : [ "", [ "https://", { "Fn::GetAtt" : [ "AppBucket", "DomainName" ] } ] ] },
+	    "app_queue_url" : { "Ref" : "AppQueue" },
+	    "app_user_access_key_id" : { "Ref" : "AppUserKeys" },
+	    "app_user_secret_access_key" : { "Fn::GetAtt" : [ "AppUserKeys", "SecretAccessKey" ] },
+	    "app_queue_dead_letter_office_domain_name" : { "Ref" : "AppQueueDeadLetterOffice" } 
+	}
+
+    },
+
+    "Properties" : {
+	"InstanceType" : { "Ref" : "CCInstanceType" },
+	"SecurityGroups" : [ { "Ref" : "CCSecurityGroup" }, { "Ref" : "PuppetMasterSecurityGroup" }, { "Ref" : "SyslogSecurityGroup" } ],
+	"ImageId" : { "Fn::FindInMap" : [ "AWSRegionArch2AMI", { "Ref" : "AWS::Region" },
+					  { "Fn::FindInMap" : [ "AWSInstanceType2Arch", { "Ref" : "CCInstanceType" }, "Arch" ] } ] },
+	"KeyName" : { "Ref" : "KeyName" },
+	"UserData" : { 
+	    "Fn::Base64" : { 
+		"Fn::Join" : ["", [ "#!/bin/bash\n",
+				    "apt-get -y update\n",
+				    "apt-get -y install python-setuptools\n",
+				    "easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
+				    "/usr/local/bin/cfn-init -v --region ", { "Ref" : "AWS::Region" },
+				    " -s ", { "Ref" : "AWS::StackName" }, " -r cc1 ",
+				    " --access-key ", { "Ref" : "CFNInitUserKeys" },
+				    " --secret-key ", { "Fn::GetAtt" : ["CFNInitUserKeys", "SecretAccessKey"]}, "\n",
+				    "/usr/local/bin/cfn-signal -e $? '", { "Ref" : "PuppetMasterWaitHandle" }, "'\n" ] ]
+	    }
+	}
+    }
+},
+
+"PuppetMasterWaitHandle" : {
+    "Type" : "AWS::CloudFormation::WaitConditionHandle"
+},
+
+"PuppetMasterWaitCondition" : {
+    "Type" : "AWS::CloudFormation::WaitCondition",
+    "DependsOn" : "cc1",
+    "Properties" : {
+	"Handle" : { "Ref" : "PuppetMasterWaitHandle" },
+	"Timeout" : "600"
+    }
+},
+
+#endif
